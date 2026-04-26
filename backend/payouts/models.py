@@ -37,11 +37,7 @@ class Payout(models.Model):
         output_field=models.DateTimeField(),
         db_persist=True
     )
-    updated_at=models.GeneratedField(
-        expression=UUIDExtractTimestamp("id"),
-        output_field=models.DateTimeField(),
-        db_persist=True
-    )
+    updated_at=models.DateTimeField(auto_now=True)
     
     class Meta:
         db_table = "payouts"

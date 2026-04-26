@@ -56,8 +56,10 @@ class Command(BaseCommand):
                 # call the service layer
                 merchant = create_merchant(**data['merchant'])
                 
+                # create bank account for each
                 create_bank_account(merchant=merchant, **data['bank'])
                 
+                # create credit ledger entries (simulate customer payments)
                 for credit in data['credits']:
                     create_credit_entry(
                         merchant=merchant,
@@ -68,5 +70,3 @@ class Command(BaseCommand):
                     f"Merchant {data['merchant']['email']} created successfully with "
                     f"INR: {sum(c['amount_paise'] for c in data['credits']) // 100}"
                 ))
-        # create bank account for each
-        # create credit ledger entries (simulate customer payments)
