@@ -11,8 +11,9 @@ from .constants import (
     OUTCOME_FAILURE,
     OUTCOME_HANG
 )
+import time
 
-@shared_task
+@shared_task()
 def process_payout(payout_id: str):
     from .models import Payout
     from ledger.models import Ledger
@@ -28,7 +29,7 @@ def process_payout(payout_id: str):
     payout.status = STATUS_PROCESSING
     payout.attempts += 1
     payout.last_attempted_at = timezone.now()
-    payout.save()
+    payout.save(update_fields=['status', 'attempts', 'last_attempted_at', 'updated_at'])
     
     outcome = random.choices(
         [OUTCOME_SUCCESS, OUTCOME_FAILURE, OUTCOME_HANG],
@@ -39,13 +40,13 @@ def process_payout(payout_id: str):
         with transaction.atomic():
             payout = Payout.objects.select_for_update().get(id=payout_id)
             payout.status = "completed"
-            payout.save()
+            payout.save(update_fields=['status', 'updated_at'])
     elif outcome == OUTCOME_FAILURE:
         with transaction.atomic():
             payout = Payout.objects.select_for_update().get(id=payout_id)
             payout.status = "failed"
             payout.failure_reason = "Transaction failed"
-            payout.save()
+            payout.save(update_fields=['status', 'failure_reason', 'updated_at'])
             
             # refund the amount to the merchant
             Ledger.objects.create(
@@ -56,7 +57,7 @@ def process_payout(payout_id: str):
                 payout=payout
             )
 
-@shared_task
+@shared_task()
 def retry_timeout_payouts():
     from .models import Payout
     from ledger.models import Ledger
@@ -65,28 +66,35 @@ def retry_timeout_payouts():
     
     stuck_payouts = Payout.objects.filter(
         status=STATUS_PROCESSING,
-        last_attempted_at=timeout_threshold
+        last_attempted_at__lte=timeout_threshold
     )
     
     for payout in stuck_payouts:
         if payout.attempts < 3:
-            process_payout.delay(str(payout.id)) # type: ignore[attr-defined]
+            with transaction.atomic():
+                p = Payout.objects.select_for_update().get(id=payout.id)
+                if p.status != STATUS_PROCESSING:
+                    continue
+                p.status = STATUS_PENDING
+                p.save(update_fields=['status', 'updated_at'])
+                payout_id=str(p.id)
+                transaction.on_commit(lambda pid=payout_id: process_payout.delay(pid))# type: ignore[attr-defined]
         else:
             with transaction.atomic():
-                payout = Payout.objects.select_for_update().get(id=payout.id)
+                p = Payout.objects.select_for_update().get(id=payout.id)
                 
-                if payout.status != STATUS_PROCESSING:
+                if p.status != STATUS_PROCESSING:
                     continue
                 
-                payout.status = STATUS_FAILED
-                payout.failure_reason = "Max retries exceeded"
-                payout.save()
+                p.status = STATUS_FAILED
+                p.failure_reason = "Max retries exceeded"
+                p.save(update_fields=['status', 'failure_reason', 'updated_at'])
                 
                 # refund the amount to the merchant
                 Ledger.objects.create(
                     merchant=payout.merchant,
                     entry_type='credit',
                     amount_paise=payout.amount_paise,
-                    description=f'Refund for max retries exceeded - {payout.id}',
+                    description=f'Refund for max retries exceeded - {p.id}',
                     payout=payout
                 )

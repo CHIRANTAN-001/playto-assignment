@@ -6,7 +6,7 @@ from .serializer import PayoutRequestSerializer, PayoutResponseSerializer
 from idempotencykey.services import get_idempotency_key
 from utils.response import api_error, api_response
 from rest_framework import status
-from .services import create_payout
+from .services import create_payout, get_payout
 from .services import InSufficientFunds, ConflictIdempotencyKey, InvalidBankAccount
 
 # Create your views here.
@@ -64,4 +64,19 @@ class PayoutView(APIView):
             message="Payout created successfully",
             status_code=status.HTTP_202_ACCEPTED
         )
-        
+
+
+class MerchantPayoutView(APIView):
+    def get(self, request: Request, payout_id):
+        response = get_payout(payout_id=payout_id)
+        if not response:
+            return api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                message="Payout not found"
+            )
+        serializer = PayoutResponseSerializer(response).data
+        return api_response(
+            data=serializer,
+            message="Payout fetched successfully",
+            status_code=status.HTTP_200_OK
+        )

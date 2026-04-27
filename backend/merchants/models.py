@@ -36,7 +36,11 @@ class BankAccount(models.Model):
         db_default=UUIDv7(output_field=models.UUIDField()),
         editable=False
     )
-    merchant=models.ForeignKey(Merchant, on_delete=models.CASCADE)
+    merchant=models.ForeignKey(
+        Merchant, 
+        on_delete=models.CASCADE,
+        related_name="bank_accounts"
+    )
     account_number = models.CharField(max_length=20)
     created_at=models.GeneratedField(
         expression=UUIDExtractTimestamp("id"),
@@ -55,4 +59,6 @@ class BankAccount(models.Model):
     
     def __str__(self) -> str:
         return f"{self.account_number} - {self.merchant}"
+    
+    
     

@@ -1,7 +1,6 @@
 from pathlib import Path
-import os
-import environ
 from common.env import env
+from corsheaders.defaults import default_headers
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = env("SECRET_KEY")
@@ -9,8 +8,7 @@ SECRET_KEY = env("SECRET_KEY")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env("DEBUG")
 
-ALLOWED_HOSTS = []
-
+ALLOWED_HOSTS = env.list("ALLOWED_HOSTS")
 
 # Application definition
 
@@ -21,6 +19,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django_celery_beat",
+    "corsheaders",
     
     "common.apps.CommonConfig",
     "merchants",
@@ -32,6 +31,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -39,6 +39,12 @@ MIDDLEWARE = [
     # "django.contrib.auth.middleware.AuthenticationMiddleware",
     # "django.contrib.sessions.middleware.SessionMiddleware",
     # "django.contrib.messages.middleware.MessageMiddleware",
+]
+
+CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS")
+
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    "idempotency-key"
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -77,16 +83,15 @@ DATABASES = {
 
 # CLEREY_BROKER
 CELERY_BROKER_URL = env("REDIS_URL")
-
-CELERY_RESULT_BACKEND = env("REDIS_URL")
-
+# CELERY_RESULT_BACKEND = env("REDIS_URL")
+# CELERY_IGNORE_RESULT = True   
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
 
 # retry_timeout_payouts runs every 10 seconds automatically
 CELERY_BEAT_SCHEDULE = {
     'retry-timeout-payouts': {
         'task': 'payouts.tasks.retry_timeout_payouts',
-        'schedule': 10.0,
+        'schedule': 10.0, # 30 minutes
     }
 }
 
