@@ -2,16 +2,21 @@ from django.db import models
 from django.db.models import CheckConstraint, Q, F
 from common.db.functions import UUIDv7, UUIDExtractTimestamp
 from merchants.models import Merchant, BankAccount
-
+from .constants import (
+    STATUS_PENDING,
+    STATUS_PROCESSING,
+    STATUS_COMPLETED,
+    STATUS_FAILED
+)
 
 
 # Create your views here.
 class Payout(models.Model):
     STATUS_CHOICES = (
-        ("pending", "pending"),
-        ("processing", "processing"),
-        ("completed", "completed"),
-        ("failed", "failed")
+        (STATUS_PENDING, STATUS_PENDING),
+        (STATUS_PROCESSING, STATUS_PROCESSING),
+        (STATUS_COMPLETED, STATUS_COMPLETED),
+        (STATUS_FAILED, STATUS_FAILED)
     )
     
     id=models.UUIDField(
@@ -23,7 +28,7 @@ class Payout(models.Model):
     amount_paise=models.BigIntegerField()
     bank_account=models.ForeignKey(BankAccount, on_delete=models.PROTECT)
     
-    status=models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
+    status=models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
     
     attempts=models.IntegerField(default=0)
     

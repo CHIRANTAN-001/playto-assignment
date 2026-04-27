@@ -35,8 +35,8 @@ class PayoutView(APIView):
         try:
             payout = create_payout(
                 idempotency_key=idempotency_key,
-                amount_paise=payload["amount_paise"],
-                bank_account_id=str(payload["bank_account_id"])
+                amount_paise=payload["amount_paise"], # type: ignore
+                bank_account_id=str(payload["bank_account_id"]) # type: ignore
             )       
         except InvalidBankAccount:
             return api_error(

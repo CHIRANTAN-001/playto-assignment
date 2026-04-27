@@ -3,7 +3,7 @@ from rest_framework import serializers
 from merchants.serializer import MerchantSerializer, BankAccountSerializer
 
 class PayoutRequestSerializer(serializers.Serializer):
-    bank_account_id = serializers.IntegerField()
+    bank_account_id = serializers.UUIDField()
     amount_paise = serializers.BigIntegerField(min_value=1)
 
 class PayoutResponseSerializer(serializers.ModelSerializer):
