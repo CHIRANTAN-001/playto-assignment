@@ -19,6 +19,7 @@ from django.urls import path, include
 from common.health import HealthCheckView
 
 urlpatterns = [
+    path('', HealthCheckView.as_view(), name='root-health'),
     path('api/v1/', include('api.v1.urls')),
-    path('health/', HealthCheckView.as_view()),
+    path('health/', HealthCheckView.as_view(), name='health'),
 ]

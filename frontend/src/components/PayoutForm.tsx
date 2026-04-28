@@ -18,11 +18,6 @@ export default function PayoutForm({
   const [amount, setAmount] = useState("");
   const [bankId, setBankId] = useState("");
 
-  // auto-select first bank account when loaded
-  if (!bankId && bankAccounts.length > 0) {
-    setBankId(bankAccounts[0].id);
-  }
-
   const handleSubmit = () => {
     const val = Number(amount);
     if (!amount || isNaN(val) || val < 1 || !bankId) return;
@@ -73,6 +68,11 @@ export default function PayoutForm({
             {bankAccountsLoading && <option value="">Loading accounts…</option>}
             {!bankAccountsLoading && bankAccounts.length === 0 && (
               <option value="">No accounts found</option>
+            )}
+            {!bankAccountsLoading && bankAccounts.length > 0 && (
+              <option value="" disabled>
+                Select a bank account
+              </option>
             )}
             {bankAccounts.map((b) => (
               <option key={b.id} value={b.id}>

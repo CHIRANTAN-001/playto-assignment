@@ -8,6 +8,9 @@ from payouts import serializer as payout_serializer, services as payout_services
 from ledger import serializer as ledger_serializer
 from payouts.services import IncorrectMerchant, get_held_balance
 from .serializer import BankAccountSerializer, MerchantLookupSerializer, MerchantSerializer
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Create your views here.
 class MerchantBalanceView(APIView):
@@ -15,6 +18,7 @@ class MerchantBalanceView(APIView):
         try:
             merchant = Merchant.objects.get(id=id)
         except Merchant.DoesNotExist:
+            logger.warning(f"[MerchantBalanceView.get] Merchant not found — merchant_id={id}")
             return api_error(status_code=status.HTTP_404_NOT_FOUND, message="Merchant not found")
         
         available = get_available_balance(merchant_id=id)
@@ -42,6 +46,7 @@ class MerchantPayoutListView(APIView):
         try:
             response = payout_services.get_merchant_payouts(merchant_id=id, cursor=cursor, page_size=page_size)
         except IncorrectMerchant:
+            logger.warning(f"[MerchantPayoutListView.get] Merchant not found — merchant_id={id}")
             return api_error(
                 status_code=status.HTTP_404_NOT_FOUND,
                 message="Merchant not found"
@@ -65,6 +70,7 @@ class MerchantLedgerListView(APIView):
         try:
             response = payout_services.get_merchant_ledgers(merchant_id=id, cursor=cursor, page_size=page_size)
         except IncorrectMerchant:
+            logger.warning(f"[MerchantLedgerListView.get] Merchant not found — merchant_id={id}")
             return api_error(
                 status_code=status.HTTP_404_NOT_FOUND,
                 message="Merchant not found"
@@ -86,6 +92,7 @@ class MerchantBankAccountView(APIView):
         try:
             merchant = Merchant.objects.get(id=id)
         except Merchant.DoesNotExist:
+            logger.warning(f"[MerchantBankAccountView.get] Merchant not found — merchant_id={id}")
             return api_error(
                 status_code=status.HTTP_404_NOT_FOUND,
                 message="Merchant not found"
@@ -102,6 +109,7 @@ class MerchantLookupView(APIView):
     def post(self, request: Request):
         serializer = MerchantLookupSerializer(data=request.data)
         if not serializer.is_valid():
+            logger.warning(f"[MerchantLookupView.post] Validation failed — errors={serializer.errors}")
             return api_error(
                 status_code=status.HTTP_404_NOT_FOUND,
                 message="Merchant not found",
@@ -116,14 +124,16 @@ class MerchantLookupView(APIView):
                 email = data["email"]
             merchant = Merchant.objects.get(email=email)
         except Merchant.DoesNotExist:
+            logger.warning(f"[MerchantLookupView.post] Merchant not found — email={email}")
             return api_error(
                 status_code=status.HTTP_404_NOT_FOUND,
                 message="Merchant not found"
             )
         
+        logger.info(f"[MerchantLookupView.post] Merchant found — merchant_id={merchant.id} email={email}")
         response_serializer = MerchantSerializer(instance=merchant)
 
         return api_response(
             data=response_serializer.data,
             message="Merchant fetched successfully"
-        )
+        )

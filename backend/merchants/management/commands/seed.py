@@ -3,7 +3,8 @@ from django.db import transaction
 from merchants.services import create_merchant, create_bank_account
 from ledger.services import create_credit_entry
 from merchants.models import Merchant, BankAccount
-from ledger.models import Ledger
+from django.core.exceptions import ValidationError
+
 
 SEED_DATA = [
     {
@@ -11,16 +12,13 @@ SEED_DATA = [
             "name": "John Doe",
             "email": "john.doe@example.com"
         },
-        "bank": {
-            "account_number": "1234567890"
-        },
+        "banks": [
+            {"account_number": "1234567890"},
+            {"account_number": "1234567891"},
+        ],
         "credits": [
-            {
-                "amount_paise": 100000 * 100,  # ₹100000
-            },
-            {
-                "amount_paise": 250000 * 100,  # ₹250000
-            },
+            {"amount_paise": 100000 * 100},
+            {"amount_paise": 250000 * 100},
         ]
     },
     {
@@ -28,45 +26,60 @@ SEED_DATA = [
             "name": "Jane Doe",
             "email": "jane.doe@example.com"
         },
-        "bank": {
-            "account_number": "9876543210"
-        },
+        "banks": [
+            {"account_number": "9876543210"},
+            {"account_number": "9876543211"},
+        ],
         "credits": [
-            {
-                "amount_paise": 500000 * 100,  # ₹500000
-            },
-            {
-                "amount_paise": 150000 * 100,  # ₹150000
-            },
+            {"amount_paise": 500000 * 100},
+            {"amount_paise": 150000 * 100},
         ]
     },
 ]
 
 class Command(BaseCommand):
-    help = 'Seed merchants with bank accounts and credit history'
+    help = "Seed merchants with multiple bank accounts and credit history"
+
     def handle(self, *args, **kwargs):
-        # create 2 - 3 merchants
         for data in SEED_DATA:
             with transaction.atomic():
-                # check if the merchant already exists
-                if Merchant.objects.filter(email=data['merchant']['email']).exists():
-                    self.stdout.write(f"Skipping {data['merchant']['email']} as it already exists.")
-                    continue
-                
-                # call the service layer
-                merchant = create_merchant(**data['merchant'])
-                
-                # create bank account for each
-                create_bank_account(merchant=merchant, **data['bank'])
-                
-                # create credit ledger entries (simulate customer payments)
-                for credit in data['credits']:
-                    create_credit_entry(
-                        merchant=merchant,
-                        amount_paise=credit['amount_paise'],
-                    )
-                
+                email = data["merchant"]["email"]
+
+                # Get or create merchant (idempotent)
+                merchant, created = Merchant.objects.get_or_create(
+                    email=email,
+                    defaults={"name": data["merchant"]["name"]},
+                )
+
+                if created:
+                    self.stdout.write(f"Created merchant: {email}")
+                else:
+                    self.stdout.write(f"Merchant {email} already exists, syncing...")
+
+                # Create bank accounts that don't exist yet
+                accounts_created = 0
+                for bank in data["banks"]:
+                    acct_num = bank["account_number"]
+                    if not BankAccount.objects.filter(account_number=acct_num).exists():
+                        create_bank_account(
+                            merchant=merchant,
+                            account_number=acct_num,
+                        )
+                        accounts_created += 1
+
+                # Only create credits for brand-new merchants
+                total_amount = 0
+                if created:
+                    for credit in data["credits"]:
+                        create_credit_entry(
+                            merchant=merchant,
+                            amount_paise=credit["amount_paise"],
+                        )
+                        total_amount += credit["amount_paise"]
+
+                bank_count = BankAccount.objects.filter(merchant=merchant).count()
                 self.stdout.write(self.style.SUCCESS(
-                    f"Merchant {data['merchant']['email']} created successfully with "
-                    f"INR: {sum(c['amount_paise'] for c in data['credits']) // 100}"
-                ))
+                    f"✅ {email} | "
+                    f"Accounts: {bank_count} ({accounts_created} new) | "
+                    f"Credits added: ₹{total_amount // 100}"
+                ))

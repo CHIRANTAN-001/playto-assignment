@@ -1,10 +1,8 @@
-version: "3.9"
-
 services:
   postgres:
     image: postgres:18.3-alpine3.22
-    container_name: postgres_db
-    restart: always
+    container_name: playto_postgres
+    restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -14,22 +12,107 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/18/data
     networks:
-      - backend
+      - playto-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d playto"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   redis:
-    image: redis:8.4-alpine
-    container_name: redis_cache
-    restart: always
+    image: redis:7-alpine
+    container_name: playto_redis
+    restart: unless-stopped
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
     networks:
+      - playto-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: playto_backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    environment:
+      - DB_HOST=postgres
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - playto-net
+
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: playto_celery_worker
+    restart: unless-stopped
+    entrypoint: []
+    command: celery -A config worker --loglevel=info --pool=solo --concurrency=1
+    env_file:
+      - ./backend/.env
+    environment:
+      - DB_HOST=postgres
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      backend:
+        condition: service_started
+    networks:
+      - playto-net
+
+  celery_beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: playto_celery_beat
+    restart: unless-stopped
+    entrypoint: []
+    command: celery -A config beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    env_file:
+      - ./backend/.env
+    environment:
+      - DB_HOST=postgres
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      backend:
+        condition: service_started
+    networks:
+      - playto-net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: playto_frontend
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:8000/api/v1
+    depends_on:
       - backend
+    networks:
+      - playto-net
 
 volumes:
   postgres_data:
   redis_data:
 
 networks:
-  backend:
+  playto-net:
+    driver: bridge

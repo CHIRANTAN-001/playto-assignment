@@ -1,5 +1,8 @@
 import sys
 from django.apps import AppConfig
+import logging
+
+logger = logging.getLogger(__name__)
 
 class CommonConfig(AppConfig):
     name = "common"
@@ -9,4 +12,6 @@ class CommonConfig(AppConfig):
             return
 
         from .startup import check_dependencies
-        check_dependencies()
+        ok = check_dependencies()
+        if not ok:
+            logger.warning("Dependencies not met. Exiting...")

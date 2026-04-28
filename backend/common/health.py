@@ -5,7 +5,9 @@ from common.env import env
 from rest_framework import status as st
 from rest_framework.request import Request
 from rest_framework.views import APIView
+import logging
 
+logger = logging.getLogger(__name__)
 
 class HealthCheckView(APIView):
     def get(self, request: Request):
@@ -19,6 +21,7 @@ class HealthCheckView(APIView):
         except Exception as e:
             checks["database"] = str(e)
             status = "error"
+            logger.error("Database check failed: %s", e)
             
         
         try:
@@ -28,5 +31,6 @@ class HealthCheckView(APIView):
         except Exception as e:
             checks["redis"] = str(e)
             status = "error"
+            logger.error("Redis check failed: %s", e)
         
         return api_response(data={"status": status, "checks": checks}, status_code=st.HTTP_200_OK if status == "ok" else st.HTTP_503_SERVICE_UNAVAILABLE)
