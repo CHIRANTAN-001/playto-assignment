@@ -16,7 +16,7 @@ def check_dependencies():
         logger.info("✅ Database is running and reachable")
     except Exception as e:
         logger.error("\nERROR: Database is NOT running or not reachable")
-        return
+        return False
     
     # Redis check
     try:
@@ -25,4 +25,6 @@ def check_dependencies():
         logger.info("✅ Redis is running and reachable")
     except Exception as e:
         logger.error("\nERROR: Redis is NOT running or not reachable")
-        sys.exit(1)
+        return False
+
+    return True
