@@ -83,8 +83,12 @@ CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
 CELERY_BEAT_SCHEDULE = {
     'retry-timeout-payouts': {
         'task': 'payouts.tasks.retry_timeout_payouts',
-        'schedule': 10.0, # 30 minutes
-    }
+        'schedule': 10.0,
+    },
+    'ping-infrastructure': {
+        'task': 'common.tasks.ping_infrastructure',
+        'schedule': 900.0,  # 15 minutes
+    },
 }
 
 # Logging configuration
