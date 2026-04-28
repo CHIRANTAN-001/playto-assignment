@@ -57,6 +57,9 @@ def create_payout(idempotency_key: str, amount_paise: int, bank_account_id: str)
                 else:
                     logger.info(f"[create_payout] Idempotency key '{idempotency_key}' replay — returning cached response")
                     return existing_key.response_body
+            else:
+                existing_key.delete()
+                logger.info(f"[create_payout] Idempotency key '{idempotency_key}' expired — deleted old record")
         
         # 3. key doesn't exist — create it (in_flight=True)
         idempotency_record = create_idempotency_key(
@@ -162,4 +165,4 @@ def get_held_balance(merchant_id: str) -> int:
         balance=Coalesce(Sum('amount_paise'), Value(0))
     )
     
-    return result['balance']
+    return result['balance']

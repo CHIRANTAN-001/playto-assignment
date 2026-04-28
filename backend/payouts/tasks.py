@@ -23,12 +23,12 @@ def process_payout(payout_id: str):
     logger.info(f"[process_payout] Starting payout_id={payout_id}")
 
     with transaction.atomic():
-        payout = Payout.objects.select_for_update(skip_locked=True).get(id=payout_id)
+        payout = Payout.objects.select_for_update().get(id=payout_id)
 
         if payout.status != STATUS_PENDING:
             logger.warning(f"[process_payout] Skipping payout_id={payout_id} — status is '{payout.status}', expected PENDING")
             return
-        payout.status = STATUS_PROCESSING
+        payout.transition_to(STATUS_PROCESSING)
         payout.attempts += 1
         payout.last_attempted_at = timezone.now()
         payout.save(update_fields=['status', 'attempts', 'last_attempted_at', 'updated_at'])
@@ -46,13 +46,13 @@ def process_payout(payout_id: str):
     if outcome == OUTCOME_SUCCESS:
         with transaction.atomic():
             payout = Payout.objects.select_for_update().get(id=payout_id)
-            payout.status = STATUS_COMPLETED
+            payout.transition_to(STATUS_COMPLETED)
             payout.save(update_fields=['status', 'updated_at'])
             logger.info(f"[process_payout] payout_id={payout_id} → COMPLETED ✅")
     elif outcome == OUTCOME_FAILURE:
         with transaction.atomic():
             payout = Payout.objects.select_for_update().get(id=payout_id)
-            payout.status = STATUS_FAILED
+            payout.transition_to(STATUS_FAILED)
             payout.failure_reason = "Transaction failed"
             payout.save(update_fields=['status', 'failure_reason', 'updated_at'])
             logger.info(f"[process_payout] payout_id={payout_id} → FAILED ❌")
@@ -111,7 +111,7 @@ def retry_timeout_payouts():
                 if p.status != STATUS_PROCESSING:
                     logger.warning(f"[retry_timeout_payouts] payout_id={payout.id} — status changed to '{p.status}' under lock, skipping")
                     continue
-                p.status = STATUS_PENDING
+                p.transition_to(STATUS_PENDING)
                 p.save(update_fields=['status', 'updated_at'])
                 payout_id = str(p.id)
                 transaction.on_commit(lambda pid=payout_id: process_payout.delay(pid))  # type: ignore[attr-defined]
@@ -122,7 +122,7 @@ def retry_timeout_payouts():
                 if p.status != STATUS_PROCESSING:
                     logger.warning(f"[retry_timeout_payouts] payout_id={payout.id} — status changed to '{p.status}' under lock, skipping")
                     continue
-                p.status = STATUS_FAILED
+                p.transition_to(STATUS_FAILED)
                 p.failure_reason = "Max retries exceeded"
                 p.save(update_fields=['status', 'failure_reason', 'updated_at'])
 

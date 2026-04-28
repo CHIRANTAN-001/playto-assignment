@@ -10,7 +10,24 @@ from .constants import (
 )
 
 
-# Create your views here.
+class InvalidStateTransition(Exception):
+    """Raised when a payout status transition violates the state machine."""
+    pass
+
+
+# Legal state transitions for the payout lifecycle:
+#   pending -> processing -> completed    (happy path)
+#   pending -> processing -> failed      (bank rejected)
+#   processing -> pending               (retry after timeout)
+# Terminal states (completed, failed) allow NO outgoing transitions.
+VALID_TRANSITIONS: dict[str, set[str]] = {
+    STATUS_PENDING:    {STATUS_PROCESSING},
+    STATUS_PROCESSING: {STATUS_COMPLETED, STATUS_FAILED, STATUS_PENDING},
+    STATUS_COMPLETED:  set(),  # no transitions allowed
+    STATUS_FAILED:     set(),  # no transitions allowed
+}
+
+
 class Payout(models.Model):
     STATUS_CHOICES = (
         (STATUS_PENDING, STATUS_PENDING),
@@ -61,5 +78,13 @@ class Payout(models.Model):
             )
         ]
     
+    def transition_to(self, new_status: str):
+        allowed = VALID_TRANSITIONS.get(self.status, set())
+        if new_status not in allowed:
+            raise InvalidStateTransition(
+                f"Cannot transition from '{self.status}' to '{new_status}'"
+            )
+        self.status = new_status
+
     def __str__(self):
         return f"{self.merchant} - {self.amount_paise} - {self.status} - {self.attempts}"
